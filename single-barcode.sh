@@ -3,10 +3,10 @@
 
 function show_help() {
 	echo
-	echo -e "USAGE: single-cd.sh -d /output-directory/ -l LIBRARY \n"
+	echo -e "USAGE: single-barcode.sh -d /output-directory/ -l LIBRARY \n"
 	echo -l ": The library the collection is from."
 	echo -d ": The directory you want to write to, e.g. /share/ECSL-ISO-AllBatches/"
- 	echo -e "Example:\n./single-cd.sh -l ECSL -d /share/ECSL-ISO-AllBatches/"  
+ 	echo -e "Example:\n./single-barcode.sh -l ECSL -d /share/ECSL-ISO-AllBatches/"  
 }
 
 
@@ -182,8 +182,8 @@ mkdir -p -m 777 $dir/$calldum
 
 #Rip ISO
 echo "Ripping CD $dir/$calldum/$calldum.iso"
-#dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
-touch $dir/$calldum/$calldum.iso
+dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
+#touch $dir/$calldum/$calldum.iso
 	
 scandisk
 
