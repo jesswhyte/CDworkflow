@@ -3,11 +3,11 @@
 
 function show_help() {
 	echo
-	echo -e "USAGE: checknimbie.sh -s /ISO-dir/ -d /output-directory/ -l LIBRARY \n"
+	echo -e "USAGE: checknimbie-barcode.sh -s /ISO-dir/ -d /output-directory/ -l LIBRARY \n"
 	echo -l ": The library the collection is from."
 	echo -d ": The directory you want to write to, e.g. /share/ECSL-ISO-AllBatches/"
 	echo -s ": The source directory for iso files, e.g. /share/Nimbie_ISOs"
- 	echo -e "Example:\n./checknimbie.sh -l ECSL -s /share/Nimbie_ISOs/ -d /share/ECSL-ISO-AllBatches/"  
+ 	echo -e "Example:\n./checknimbie-barcode.sh -l ECSL -s /share/Nimbie_ISOs/ -d /share/ECSL-ISO-AllBatches/"  
 }
 
 
@@ -71,10 +71,14 @@ function manualISO {
 	fi
 }
 
-function CD-catpull {
+function CD-catpull-barcode {
 	read -p "Do you want to pull and check catalog metadata? [y/n] " catresponse && echo $catresponse
 	if [[ "$catresponse" != "n" ]]; then
-		/usr/local/bin/CD-catpull -l "$lib" -d "$dir" -c "$callnum"
+		if [[ -n "$catkey" ]]; then
+			CD-catpull-barcode.py -l $lib -d $dir -c $calldum -k $catkey
+		else
+			CD-catpull-barcode.py -l $lib -d $dir -c $calldum
+		fi
 	else 
 		echo "No metadata pulled. project log NOT updated."
 	fi
@@ -108,6 +112,13 @@ function doublecheck {
 	fi	
 }
 
+function multipledisks {
+	IFS= read -re -p 'Are there multiple disks for this object? [y/n] ' multiple
+	if [[ "$multiple" == "y" ]]; then
+		IFS= read -re -p 'Which Disk # is this, e.g. 1, 2, 3? ' disknum
+	fi
+}
+
 OPTIND=1
 dir=""
 lib=""
@@ -116,6 +127,7 @@ callnum=""
 calldum=""
 answer="y"
 drive="/dev/cdrom"
+barcode=""
 
 # Parse arguments
 while getopts "h?d:l:s:" opt; do
@@ -158,7 +170,7 @@ if [ $lv -eq 0 ]; then
   echo -e "Valid libraries:\n${LIBS[*]}"
 fi
 
-dir=${dir%/} 
+dir=${dir%/}
 
 ### Get correct scanner location ###
 scanner="epson2:libusb:"
@@ -179,24 +191,18 @@ fi
 numResults=""
 
 ### Work out callnum ###
+numResults=""
+
 while [[ "$numResults" != "1" ]]; do
 	echo ""
-	IFS= read -re -i "$callnum" -p 'Enter Call Number (use "."), lower-case OK: ' callnum
-	#echo -n 'Enter Call Number (use "."), lower-case OK: '
-	#read callnum
-	callnum=${callnum^^}
-	calldum=${callnum//./-}
-	callnum=$(sed -e 's/\.DIS..//g' <<< $callnum)
-	echo ""
-	echo "Making catalog call on:  $callnum"
-	calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/search?N=0&Ntx=mode+matchallpartial&Nu=p_work_normalized&Np=1&Ntk=p_call_num_949&format=json&Ntt=$callnum")
+	IFS= read -re -i "$barcode" -p 'Scan barcode: ' barcode
+	calljson=$(curl --silent "https://search.library.utoronto.ca/search?N=0&Nu=p_work_normalized&Np=1&Nr=p_item_id:$barcode&format=json")
 	numResults=$(echo $calljson | jq .result.numResults)
-	echo ""
 	if [ "$numResults" -eq "0" ]; then
 		echo "ERROR: No catalog results found."
 	elif [ "$numResults" -gt "1" ]; then
 		echo "ERROR: More than one catalog result found."
-		IFS= read -re -i "$catkey" -p 'Enter cat key (can find in library catalog) or Ctrl+C to exit: ' catkey
+		IFS= read -re -i "$catkey" -p 'Enter cat key (can find by searching library.utoronto.ca) or Ctrl+C to exit: ' catkey
 		calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/details?$catkey&format=json")	
 		title=$(echo $calljson | jq .record.title)
 		if [[ -n "$title" ]]; then
@@ -205,10 +211,43 @@ while [[ "$numResults" != "1" ]]; do
 		fi
 	elif [ "$numResults" -eq "1" ]; then
 		title=$(echo $calljson | jq .result.records[].title)
+		catkey=$(echo $calljson | jq .result.records[].catkey)
 		echo "SUCCESS: One cat result found: $title"
 		continue
 	fi
 done
+	
+#Get call number
+numItems=""
+numItems=$(echo $calljson | jq '.result.records[].holdings.items | length')
+if [ "$numItems" -eq "0" ]; then 
+	echo "ERROR: no holdings or items found."
+elif [ "$numItems" -gt "1" ]; then
+	echo "More than one holding/item found."
+	holdings=$(echo $calljson | jq .result.records[].holdings.items[])
+	echo "$holdings"
+	IFS= read -re -i "$item" -p 'Enter Item number you want (e.g. 1, 2, 3): ' item 
+	item="$(($item-1))"
+	callnum=$(echo $calljson | jq .result.records[].holdings.items[$item].callnumber)
+elif [ "$numItems" -eq "1" ]; then
+	callnum=$(echo $calljson | jq .result.records[].holdings.items[].callnumber)
+fi
+
+callnum=${callnum// /-} #remove spaces
+callnum=${callnum^^} #capitalize
+callnum=${callnum//./-} #replace dots with dashes
+callnum=${callnum//--/-} #replace double dashes
+callnum=$(sed 's/"//g' <<< $callnum)
+
+echo "callnumber is $callnum"
+
+multipledisks
+
+calldum=$callnum
+if [[ -n "$disknum" ]]; then
+	calldum="$calldum.DISK$disknum"
+fi
+
 
 
 ### Insert Disk ###	
@@ -308,7 +347,9 @@ fi
 #scan the disk
 scandisk
 #pull the metadata using python script
-CD-catpull
+
+CD-catpull-barcode
+
 #remove old volumeIDs-temp.txt
 rm volumeIDs-temp.txt
 

@@ -42,6 +42,14 @@ function scandisk {
 	fi
 }
 
+function multipledisks {
+	IFS= read -re -p 'Are there multiple disks for this object? [y/n] ' multiple
+	if [[ "$multiple" == "y" ]]; then
+		IFS= read -re -p 'Which Disk # is this, e.g. 1, 2, 3? ' disknum
+	fi
+}
+
+
 OPTIND=1
 dir=""
 lib=""
@@ -103,7 +111,7 @@ numResults=""
 
 while [[ "$numResults" != "1" ]]; do
 	echo ""
-	IFS= read -re -i "$barcode" -p 'Scan barcode: ' barcode
+	IFS= read -re -p 'Scan barcode: ' barcode
 	calljson=$(curl --silent "https://search.library.utoronto.ca/search?N=0&Nu=p_work_normalized&Np=1&Nr=p_item_id:$barcode&format=json")
 	numResults=$(echo $calljson | jq .result.numResults)
 	if [ "$numResults" -eq "0" ]; then
@@ -146,9 +154,16 @@ callnum=${callnum^^} #capitalize
 callnum=${callnum//./-} #replace dots with dashes
 callnum=${callnum//--/-} #replace double dashes
 callnum=$(sed 's/"//g' <<< $callnum)
-callnum=$(sed -e 's/\.DIS..//g' <<< $callnum) #TODO: fix multiple disk issue
-echo $callnum
+
+echo "callnumber is $callnum"
+
 calldum=$callnum
+
+multipledisks
+
+if [[ -n "$disknum" ]]; then
+	calldum="$calldum.DISK$disknum"
+fi
 	
 	
 echo ""
@@ -188,9 +203,9 @@ dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso s
 scandisk
 
 if [[ -n "$catkey" ]]; then
-	CD-catpull -l $lib -d $dir -c $callnum -k $catkey
+	CD-catpull-barcode.py -l $lib -d $dir -c $callnum -k $catkey
 else
-	CD-catpull -l $lib -d $dir -c $callnum
+	CD-catpull-barcode.py -l $lib -d $dir -c $callnum
 fi
 
 

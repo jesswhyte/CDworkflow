@@ -24,8 +24,8 @@ function array_contains() {
 }
 
 function scandisk {
-	tiff="$dir$calldum/$calldum-original.tiff"
-	cropped="$dir$calldum/$calldum.tiff"
+	tiff="$dir/$calldum/$calldum-original.tiff"
+	cropped="$dir/$calldum/$calldum.tiff"
 	if [ -e $cropped ]; then
 		echo $cropped "exists"
 		ls $cropped
@@ -86,6 +86,8 @@ if [ $lv -eq 0 ]; then
   echo "$lib is not a valid library name."
   echo -e "Valid libraries:\n${LIBS[*]}"
 fi
+
+dir=${dir%/}
 
 ### Get correct scanner location ###
 scanner="epson2:libusb:"
