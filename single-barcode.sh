@@ -162,7 +162,8 @@ calldum=$callnum
 multipledisks
 
 if [[ -n "$disknum" ]]; then
-	calldum="$calldum.DISK$disknum"
+	calldum="$calldum-DISK$disknum"
+	echo "calldum is $calldum"
 fi
 	
 	
@@ -176,6 +177,7 @@ volumeCD=$(echo "$cdinfo" | grep "^Volume id:" | cut -d " " -f 3)
 #get blockcount/volume size of CD
 blockcount=$(echo "$cdinfo" | grep "^Volume size is:" | cut -d " " -f 4)
 if test "$blockcount" = ""; then
+
 	echo catdevice FATAL ERROR: Blank blockcount >&2
 	exit
 fi
@@ -197,15 +199,15 @@ mkdir -p -m 777 $dir/$calldum
 
 #Rip ISO
 echo "Ripping CD $dir/$calldum/$calldum.iso"
-dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
-#touch $dir/$calldum/$calldum.iso
+#dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
+touch $dir/$calldum/$calldum.iso
 	
 scandisk
 
 if [[ -n "$catkey" ]]; then
-	CD-catpull-barcode.py -l $lib -d $dir -c $callnum -k $catkey
+	CD-catpull-barcode.py -l $lib -d $dir -c $calldum -k $catkey
 else
-	CD-catpull-barcode.py -l $lib -d $dir -c $callnum
+	CD-catpull-barcode.py -l $lib -d $dir -c $calldum
 fi
 
 

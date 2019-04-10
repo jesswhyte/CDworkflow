@@ -63,7 +63,7 @@ mediaType = "CDROM"
 callNum = args.call 
 callNum = callNum.upper() #makes callNum uppercase
 callDum=callNum.replace('.','-') #replaces . in callNum with - for callDum
-callNum = re.sub(r".DISK\w","",callNum) # removes the DISK[#] identifier needed for callDum, but only after creating callDum
+callNum = re.sub(r"-DISK\w","",callNum) # removes the DISK[#] identifier needed for callDum, but only after creating callDum
 catKey = args.key
 dir = args.dir
 callUrl = str(
@@ -72,7 +72,7 @@ callUrl = str(
 outputPath = callDum+"/"
 print(outputPath)
 diskpic=outputPath+callDum+".tiff"
-print(diskpic)
+
 #note=args.note
 
 #################################

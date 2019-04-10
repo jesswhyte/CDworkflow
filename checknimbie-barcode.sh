@@ -245,7 +245,7 @@ multipledisks
 
 calldum=$callnum
 if [[ -n "$disknum" ]]; then
-	calldum="$calldum.DISK$disknum"
+	calldum="$calldum-DISK$disknum"
 fi
 
 
