@@ -219,6 +219,8 @@ description = cat_dic['record']['description']
 
 print(bcolors.GREENBLOCK + "Confirming:\nTitle: %s\nImprint: %s\nCatKey: %s \nDescription: %s" % (title, imprint, catkey, description) + bcolors.ENDGB)
 
+os.system("curl \'"+catUrl+"\' | jq .") # display json output from callNum
+
 print("\nDISK LABEL TRANSCRIPTION")
 print("TIP: Avoid duplicating information from cat record (e.g. authors, publishers, ISBNs, etc.)")
 print("TIP: Avoid quotes please")
