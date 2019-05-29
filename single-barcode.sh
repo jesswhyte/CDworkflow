@@ -195,12 +195,12 @@ echo "Volume label for CD is: "$volumeCD
 echo "Volume size for CD is: "$blockcount
 
 dir=${dir%/}
-mkdir -p -m 777 $dir/$calldum
+mkdir -p $dir/$calldum
 
 #Rip ISO
 echo "Ripping CD $dir/$calldum/$calldum.iso"
-#dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
-touch $dir/$calldum/$calldum.iso
+dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
+#touch $dir/$calldum/$calldum.iso
 	
 scandisk
 

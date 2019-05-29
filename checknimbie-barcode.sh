@@ -32,7 +32,7 @@ function scandisk {
 		ls $cropped
 	fi
 	read -p "Do you want to scan this disk? [y/n] " response
-	if [[ "$response" =~ ^([Yy])+$ ]]; then
+	if [[ "$response" != "n" ]]; then
 		echo "Ejecting drive..."
 		eject
 		read -p "Please put disk on scanner and hit any key when ready"
