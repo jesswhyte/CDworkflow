@@ -3,10 +3,10 @@
 
 function show_help() {
 	echo
-	echo -e "USAGE: single-cd.sh -d /output-directory/ -l LIBRARY \n"
+	echo -e "USAGE: single-barcode.sh -d /output-directory/ -l LIBRARY \n"
 	echo -l ": The library the collection is from."
 	echo -d ": The directory you want to write to, e.g. /share/ECSL-ISO-AllBatches/"
- 	echo -e "Example:\n./single-cd.sh -l ECSL -d /share/ECSL-ISO-AllBatches/"  
+ 	echo -e "Example:\n./single-barcode.sh -l ECSL -d /share/ECSL-ISO-AllBatches/"  
 }
 
 
@@ -41,6 +41,14 @@ function scandisk {
 		echo "Scan complete and image cropped"
 	fi
 }
+
+function multipledisks {
+	IFS= read -re -p 'Are there multiple disks for this object? [y/n] ' multiple
+	if [[ "$multiple" == "y" ]]; then
+		IFS= read -re -p 'Which Disk # is this, e.g. 1, 2, 3? ' disknum
+	fi
+}
+
 
 OPTIND=1
 dir=""
@@ -103,7 +111,7 @@ numResults=""
 
 while [[ "$numResults" != "1" ]]; do
 	echo ""
-	IFS= read -re -i "$barcode" -p 'Scan barcode: ' barcode
+	IFS= read -re -p 'Scan barcode: ' barcode
 	calljson=$(curl --silent "https://search.library.utoronto.ca/search?N=0&Nu=p_work_normalized&Np=1&Nr=p_item_id:$barcode&format=json")
 	numResults=$(echo $calljson | jq .result.numResults)
 	if [ "$numResults" -eq "0" ]; then
@@ -146,9 +154,17 @@ callnum=${callnum^^} #capitalize
 callnum=${callnum//./-} #replace dots with dashes
 callnum=${callnum//--/-} #replace double dashes
 callnum=$(sed 's/"//g' <<< $callnum)
-callnum=$(sed -e 's/\.DIS..//g' <<< $callnum) #TODO: fix multiple disk issue
-echo $callnum
+
+echo "callnumber is $callnum"
+
 calldum=$callnum
+
+multipledisks
+
+if [[ -n "$disknum" ]]; then
+	calldum="$calldum-DISK$disknum"
+	echo "calldum is $calldum"
+fi
 	
 	
 echo ""
@@ -161,6 +177,7 @@ volumeCD=$(echo "$cdinfo" | grep "^Volume id:" | cut -d " " -f 3)
 #get blockcount/volume size of CD
 blockcount=$(echo "$cdinfo" | grep "^Volume size is:" | cut -d " " -f 4)
 if test "$blockcount" = ""; then
+
 	echo catdevice FATAL ERROR: Blank blockcount >&2
 	exit
 fi
@@ -188,9 +205,9 @@ touch $dir/$calldum/$calldum.iso
 scandisk
 
 if [[ -n "$catkey" ]]; then
-	CD-catpull -l $lib -d $dir -c $callnum -k $catkey
+	CD-catpull-barcode.py -l $lib -d $dir -c $calldum -k $catkey
 else
-	CD-catpull -l $lib -d $dir -c $callnum
+	CD-catpull-barcode.py -l $lib -d $dir -c $calldum
 fi
 
 
