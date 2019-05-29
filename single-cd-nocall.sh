@@ -38,10 +38,10 @@ function scandisk {
 		#eject
 		read -p "Please put disk on scanner and hit any key when ready"
 		echo "Scanning...: $tiff"
-		touch $tiff
-		touch $cropped
-		#scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
-		#convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
+		#touch $tiff
+		#touch $cropped
+		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
+		convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
 		echo "Scan complete and image cropped, please manually check crops once collection is complete."
 	fi
 }
@@ -100,12 +100,11 @@ device=$(lsusb | grep Epson | cut -d " " -f 4 | cut -d ":" -f 1)
 if [ -z "$device" ]; then 
 	echo "***ERROR: SCANNER NOT FOUND***"
 	echo "script will not run, turn on scanner"
-#	exit 1
+	exit 1
 else
 	scanner="epson2:libusb:$bus:$device"
 fi
 
-#IFS= read -re -i "$callnum" -p 'Enter Disk ID: ' callnum
 callnum=${callnum^^}
 calldum=${callnum//./-}
 	
@@ -141,8 +140,8 @@ mkdir -p -m 777 $dir/$coll/$calldum
 
 #Rip ISO
 echo "Ripping CD $dir/$coll/$calldum/$calldum.iso"
-#dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$lib/$calldum/$calldum.iso status=progress
-touch $dir/$coll/$calldum/$calldum.iso
+dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$lib/$calldum/$calldum.iso status=progress
+#touch $dir/$coll/$calldum/$calldum.iso
 	
 scandisk
 
