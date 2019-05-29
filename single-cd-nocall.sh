@@ -3,10 +3,12 @@
 
 function show_help() {
 	echo
-	echo -e "USAGE: single-cd-nocall.sh -d /output-directory/ -c COLL \n"
+	echo -e "USAGE: single-cd-nocall.sh -d /output-directory/ -c COLL -t 'transcript of label' -i DiskID\n"
 	echo -c ": The collection or lib the disk is from, Please No Spaces"
 	echo -d ": The directory you want to write to, e.g. /share/UTARMS/"
- 	echo -e "Example:\n./single-cd.sh -l A2018-009 -d /share/UTARMS/"  
+	echo -t ": A transcript of the disk label, please avoid special characters."
+	echo -i ": Disk ID, e.g. 001, 002"
+ 	echo -e 'Example:\n./single-cd.sh -d /share/UTARMS/ -c B2014-005 -t "Drafts -- 1987" -i 001'  
 }
 
 
@@ -24,8 +26,8 @@ function array_contains() {
 }
 
 function scandisk {
-	tiff="$dir$calldum/$calldum-original.tiff"
-	cropped="$dir$calldum/$calldum.tiff"
+	tiff="$dir/$coll/$calldum/$calldum-original.tiff"
+	cropped="$dir/$coll/$calldum/$calldum.tiff"
 	if [ -e $cropped ]; then
 		echo $cropped "exists"
 		ls $cropped
@@ -33,25 +35,29 @@ function scandisk {
 	read -p "Do you want to scan this disk? [y/n] " response
 	if [[ "$response" =~ ^([Yy])+$ ]]; then
 		echo "Ejecting drive..."
-		eject
+		#eject
 		read -p "Please put disk on scanner and hit any key when ready"
 		echo "Scanning...: $tiff"
-		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
-		convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
-		echo "Scan complete and image cropped"
+		touch $tiff
+		touch $cropped
+		#scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
+		#convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
+		echo "Scan complete and image cropped, please manually check crops once collection is complete."
 	fi
 }
 
 OPTIND=1
 dir=""
-lib=""
+coll=""
 callnum=""
 calldum=""
+transcript=""
 answer="y"
 drive="/dev/cdrom"
+note="NA"
 
 # Parse arguments
-while getopts "h?d:l:s:" opt; do
+while getopts "h?d:c:t:i:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -59,8 +65,11 @@ while getopts "h?d:l:s:" opt; do
         ;;
     d)  dir=$OPTARG
         ;;
-    c)  lib=$OPTARG
+    c)  coll=$OPTARG
         ;;
+    t)  transcript=$OPTARG
+    	;;
+    i)  callnum=$OPTARG
     esac
 done
 
@@ -71,10 +80,15 @@ shift $((OPTIND-1))
 garbage="$@"
 
 # Check all required parameters are present
-if [ -z "$lib" ]; then
+if [ -z "$coll" ]; then
   echo "Collection (-c) is required!"
+  exit 1
 elif [ -z "$dir" ]; then
   echo "output directory (-d) is required!"
+  exit 1
+elif [ -z "$callnum" ]; then
+  echo "disk id (-i) is required!"
+  exit 1
 elif [ "$garbage" ]; then
   echo "$garbage is garbage."
 fi
@@ -85,20 +99,20 @@ bus=$(lsusb | grep Epson | cut -d " " -f 2)
 device=$(lsusb | grep Epson | cut -d " " -f 4 | cut -d ":" -f 1)
 if [ -z "$device" ]; then 
 	echo "***ERROR: SCANNER NOT FOUND***"
-	exit 1
+	echo "script will not run, turn on scanner"
+#	exit 1
 else
 	scanner="epson2:libusb:$bus:$device"
 fi
 
-IFS= read -re -i "$callnum" -p 'Enter Disk ID: ' callnum
+#IFS= read -re -i "$callnum" -p 'Enter Disk ID: ' callnum
 callnum=${callnum^^}
 calldum=${callnum//./-}
 	
-done
 	
 echo ""
-read -p "Please insert disk into drive and hit Enter"
-read -p "Please hit Enter again, once disc is LOADED"
+read -p "Please insert CD into drive and hit Enter"
+read -p "Please hit Enter again, once CD is LOADED"
 
 #get CD INFO
 cdinfo=$(isoinfo -d -i /dev/cdrom)
@@ -123,15 +137,26 @@ echo "Volume label for CD is: "$volumeCD
 echo "Volume size for CD is: "$blockcount
 echo ""
 
-mkdir -p -m 777 $dir/$calldum
+mkdir -p -m 777 $dir/$coll/$calldum
 
 #Rip ISO
-echo "Ripping CD $dir/$calldum/$calldum.iso"
-dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
-#touch $dir/$calldum/$calldum.iso
+echo "Ripping CD $dir/$coll/$calldum/$calldum.iso"
+#dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$lib/$calldum/$calldum.iso status=progress
+touch $dir/$coll/$calldum/$calldum.iso
 	
 scandisk
 
+##NOTE UPDATE
+IFS= read -re -i "$note" -p 'Update CD notes, otherwise hit Enter: ' note
 
+if test -f "$dir/$coll/$calldum/$calldum.iso"; then
+	echo -e "\"$coll\",\"$calldum\",\"CD\",\"$transcript\",\"$note\",\"ISO=OK\"" >> $dir/$coll/projectlog.csv
+else
+	echo -e "\"$coll\",\"$calldum\",\"CD\",\"$transcript\",\"$note\",\"ISO=NO\"" >> $dir/$coll/projectlog.csv
+fi
+
+echo -e "CD imaged as: \nCollection: $coll \nDiskID: $calldum \nFormat: CD \nTranscript: $transcript \nNotes: $note"
+echo "Information recorded in project log at: $dir/$coll/projectlog.csv" 
+echo "Thank you!"
 
 
