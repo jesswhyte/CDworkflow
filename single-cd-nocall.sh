@@ -26,23 +26,23 @@ function array_contains() {
 }
 
 function scandisk {
-	tiff="$dir/$coll/$calldum/$calldum-original.tiff"
-	cropped="$dir/$coll/$calldum/$calldum.tiff"
-	if [ -e $cropped ]; then
-		echo $cropped "exists"
-		ls $cropped
+	tiff="$dir/$coll/$calldum/$calldum.tiff"
+#	cropped="$dir/$coll/$calldum/$calldum.tiff"
+	if [ -e $tiff ]; then
+		echo $tiff "exists"
+		ls $tiff
 	fi
 	read -p "Do you want to scan this disk? [y/n] " response
 	if [[ "$response" =~ ^([Yy])+$ ]]; then
 		echo "Ejecting drive..."
-		#eject
+		eject
 		read -p "Please put disk on scanner and hit any key when ready"
 		echo "Scanning...: $tiff"
 		#touch $tiff
 		#touch $cropped
-		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
-		convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
-		echo "Scan complete and image cropped, please manually check crops once collection is complete."
+		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 >> $tiff
+		#convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
+		echo "Scan complete, please manually check scans once collection is complete."
 	fi
 }
 
@@ -136,11 +136,13 @@ echo "Volume label for CD is: "$volumeCD
 echo "Volume size for CD is: "$blockcount
 echo ""
 
-mkdir -p -m 777 $dir/$coll/$calldum
+mkdir -p $dir/$coll/$calldum
+
+ddir=$dir/$coll/$calldum
 
 #Rip ISO
 echo "Ripping CD $dir/$coll/$calldum/$calldum.iso"
-dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$lib/$calldum/$calldum.iso status=progress
+dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$ddir/$calldum.iso status=progress
 #touch $dir/$coll/$calldum/$calldum.iso
 	
 scandisk

@@ -25,8 +25,8 @@ function array_contains() {
 }
 
 function scandisk {
-	tiff="$dir/$calldum/$calldum-original.tiff"
-	cropped="$dir/$calldum/$calldum.tiff"
+	tiff="$dir$calldum/$calldum-original.tiff"
+	cropped="$dir$calldum/$calldum.tiff"
 	if [ -e $cropped ]; then
 		echo $cropped "exists"
 		ls $cropped
@@ -61,8 +61,8 @@ function manualISO {
 	if [[ "$ISOresponse" != "n" ]]; then
 		read -p "Do you want to double-check the md5 checksums [y/n]: " md5response && echo $md5response
 		if [[ "$md5response" != "y" ]]; then
-			mkdir -p -m 777 $dir/$calldum
-			mv -iv $ISOresponse $dir/$calldum/$calldum.iso
+			mkdir -p -m 777 $dir$calldum
+			mv -iv $ISOresponse $dir$calldum/$calldum.iso
 		else			
 			checkmd5
 		fi
@@ -73,8 +73,8 @@ function manualISO {
 
 function CD-catpull {
 	read -p "Do you want to pull and check catalog metadata? [y/n] " catresponse && echo $catresponse
-	if [[ "$catresponse" != "n" ]]; then
-		/usr/local/bin/CD-catpull -l "$lib" -d "$dir" -c "$callnum"
+	if [[ "$catresponse" == "y" ]]; then
+		/usr/local/bin/CD-catpull.py -l "$lib" -d "$dir" -c "$callnum"
 	else 
 		echo "No metadata pulled. project log NOT updated."
 	fi
@@ -89,8 +89,8 @@ function checkmd5 {
 	echo "CD MD5 is: "$md5cd
 	if [ "$md5cd" == "$md5iso" ]; then
 		echo "Checksums MATCH...moving file"
-		mkdir -p -m 777 $dir/$calldum
-		mv -v $iso $dir/$calldum/$calldum.iso	
+		mkdir -p -m 777 $dir$calldum
+		mv -v $iso $dir$calldum/$calldum.iso	
 	else 
 		echo "Checksums DO NOT MATCH"
 		echo "you will need to manually create ISO using dd"
@@ -101,8 +101,8 @@ function checkmd5 {
 function doublecheck {
 	read -p "Double check md5 checksums [y/n]: " md5response && echo $md5response
 	if [[ "$md5response" != "y" ]]; then
-		mkdir -p -m 777 $dir/$calldum
-		mv -iv $iso $dir/$calldum/$calldum.iso
+		mkdir -p -m 777 $dir$calldum
+		mv -iv $iso $dir$calldum/$calldum.iso
 	else			
 		checkmd5
 	fi	
@@ -158,7 +158,6 @@ if [ $lv -eq 0 ]; then
   echo -e "Valid libraries:\n${LIBS[*]}"
 fi
 
-dir=${dir%/} 
 
 ### Get correct scanner location ###
 scanner="epson2:libusb:"
@@ -294,11 +293,11 @@ else
 			iso=$(echo $line | cut -d "," -f 1)
 			echo "MATCH FOUND: "$line
 			echo "Copying ISO to new location..."
-			if [ -e $dir/$calldum/$calldum.iso ]; then
+			if [ -e $dir$calldum/$calldum.iso ]; then
 				echo "ISO file already exists. Not moving ISO file. Please check."
 			else	
-				mkdir -p -m 777 $dir/$calldum
-				mv -iv $iso $dir/$calldum/$calldum.iso
+				mkdir -p -m 777 $dir$calldum
+				mv -iv $iso $dir$calldum/$calldum.iso
 			fi			
 		
 		done	

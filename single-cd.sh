@@ -24,8 +24,8 @@ function array_contains() {
 }
 
 function scandisk {
-	tiff="$dir/$calldum/$calldum-original.tiff"
-	cropped="$dir/$calldum/$calldum.tiff"
+	tiff="$dir$calldum/$calldum-original.tiff"
+	cropped="$dir$calldum/$calldum.tiff"
 	if [ -e $cropped ]; then
 		echo $cropped "exists"
 		ls $cropped
@@ -86,8 +86,6 @@ if [ $lv -eq 0 ]; then
   echo "$lib is not a valid library name."
   echo -e "Valid libraries:\n${LIBS[*]}"
 fi
-
-dir=${dir%/}
 
 ### Get correct scanner location ###
 scanner="epson2:libusb:"
@@ -170,9 +168,9 @@ dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso s
 scandisk
 
 if [[ -n "$catkey" ]]; then
-	CD-catpull -l $lib -d $dir -c $callnum -k $catkey
+	CD-catpull.py -l $lib -d $dir -c $callnum -k $catkey
 else
-	CD-catpull -l $lib -d $dir -c $callnum
+	CD-catpull.py -l $lib -d $dir -c $callnum
 fi
 
 

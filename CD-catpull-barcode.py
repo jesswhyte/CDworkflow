@@ -70,7 +70,7 @@ callUrl = str(
 	"https://search.library.utoronto.ca/search?N=0&Ntx=mode+matchallpartial&Nu=p_work_normalized&Np=1&Ntk=p_call_num_949&format=json&Ntt=%s" % callNum
 )
 outputPath = callDum+"/"
-print(outputPath)
+#print(outputPath)
 diskpic=outputPath+callDum+".tiff"
 
 #note=args.note
@@ -124,27 +124,36 @@ def get_json_data(url):
 # update the notes
 def updateNoteLong():
 	global note
+	print()
 	print("\nDISK NOTES")
+	print()
 	print("Note currently set to: \""+bcolors.OKGREEN+note+bcolors.ENDC+"\"")
+	print()
 	print("TIP: Notes are for noting catalog flags or imaging failures")
 	print("TIP: Try to be brief and consistent")
 	print("TIP: If the resource is \"stand-alone\", please change the note")
+	print()
 	noteupdate = input(bcolors.INPUT+"If you would like to CHANGE the disk notes, please do so now, otherwise hit Enter: "+bcolors.ENDC)
 	if noteupdate == "":
 		note = str(note)
+		print()
 		print("Note unchanged...")
 	else:
 		note = noteupdate
+		print()
 		print("Note has been changed to: " + bcolors.OKGREEN + note + bcolors.ENDC)
 
 def updateNote():
 	global note
+	print()
 	noteupdate = input(bcolors.INPUT+"If you would like to ADD to the disk notes at this time, please do so, otherwise hit Enter: "+bcolors.ENDC)
 	if noteupdate == "":
 		note = str(note)
+		print()
 		print("Note unchanged...")
 	else:
 		note = note + " -- " + noteupdate
+		print()
 		print("Note has been changed to: " + bcolors.OKGREEN + note + bcolors.ENDC)
 
 
@@ -169,18 +178,24 @@ with open('projectlog.csv','a+') as inlog:
 			continue
 		else:
 			if callDum == row[1]:
+				print()
 				print(bcolors.INPUT+"log entry exists for that Call Number:"+bcolors.ENDC)	
+				print()
 				print(row)
+				print()
 				replacePath = input(bcolors.INPUT+"Proceed anyway y/n? "+bcolors.ENDC)
 				if replacePath.lower() == 'y' or replacePath.lower() == 'yes':
+					print()
 					print(bcolors.OKGREEN+"Replacing "+callDum+" ..."+bcolors.ENDC)
 				if replacePath.lower() == 'n' or replacePath.lower() == 'no': 
+					print()
 					sys.exit("No entries updated. Exiting...")	
 						
 inlog.close()			
 			
 
 ### Communicate we're going to search the callNum as given...
+print()
 print("Searching callNum: "+callNum+"...")
 
 ### GET THE TITLE AND OTHER METADATA
@@ -195,6 +210,7 @@ if not catKey: #get that catkey
 	if num_results > 1:
 		# From what we've seen, there should only be one record
 		if len(call_dic['result']['records']) > 1:
+			print()
 			sys.exit(bcolors.FAIL+'There\'s more than one record. Script is not designed to handle this case. Please set disk aside or consult catalog'+bcolors.ENDC)
 		results_dict = get_json_data(call_dic['result']['records'][0]['jsonLink'])
 		catKey = disambiguate_records(results_dict)
@@ -216,20 +232,24 @@ description = cat_dic['record']['description']
 
 ### PRINT THE METADATA
 ## x1b stuff is just to make it show up a different color so it's noticeable
-
+print()
 print(bcolors.GREENBLOCK + "Confirming:\nTitle: %s\nImprint: %s\nCatKey: %s \nDescription: %s" % (title, imprint, catkey, description) + bcolors.ENDGB)
 
 os.system("curl \'"+catUrl+"\' | jq .") # display json output from callNum
 
+print()
 print("\nDISK LABEL TRANSCRIPTION")
+print()
 print("TIP: Avoid duplicating information from cat record (e.g. authors, publishers, ISBNs, etc.)")
 print("TIP: Avoid quotes please")
 print("EXAMPLE: Functions - Programs - Chapter Code - Nodal Demo -- Software to accompany Applied Electronic Engineering with Mathematica -- Requires MATLAB Version 2+ and DOS 2.x")
-print("Launching Preview...")
+print()
 if not os.path.exists(diskpic):
+	print()
 	print(outputPath+callDum+".tiff DOES NOT EXIST")
 
 
+print()
 print("A Window will open to enter the disk label transcription...")
 app = QtWidgets.QApplication(sys.argv)
 args = app.arguments()[1:]
@@ -237,9 +257,11 @@ dialog = Dialog(diskpic)
 if dialog.exec_() == QtWidgets.QDialog.Accepted:
 	label=str(dialog.editor.text())
 else:
-	print('ERROR')
+	print()
+	print('ERROR QtWidgets preview window dialog not accepted')
 	sys.exit(1)
 
+print()
 print("Label entered as: "+label)
 
 ### update note (set to default as supplementary)
@@ -277,16 +299,19 @@ metadata.close()
 ## User asked if they'd like to update the notes they entered
 updateNote()
 
+print()
 replaceMeta = input(bcolors.INPUT+"Confirm you want to create .json and a new log entry y/n? "+bcolors.ENDC)
 if replaceMeta.lower() == 'n' or replaceMeta.lower() == 'no':
 	# if replaceMeta=N, close out and exit, otherwise carry on
 	#metadata.close()
-	sys.exit ("-Exiting...")
+	print()
+	sys.exit ("No json or log entry created -Exiting...")
 
 ### Rename our metadata.txt file
 newMetadata = callDum + '.json'
 os.rename('TEMPmetadata.json', outputPath + newMetadata)
-print("Updated metadata file: "+ outputPath + newMetadata)
+print()
+print("Updating metadata file: "+ outputPath + newMetadata)
 
 ### Update master log
 ## TODO: this should really use csv library, I was lazy
@@ -294,7 +319,8 @@ print("Updated metadata file: "+ outputPath + newMetadata)
 
 ## Open and update the masterlog - projectlog.csv
 log = open('projectlog.csv','a+')
-print("Updating log...")
+print()
+print("Updating projectlog...")
 
 log.write(
 	"\n"+lib+","+callDum+","+str(catKey)+","+mediaType+
@@ -314,6 +340,7 @@ log.write(",\""+date+"\"")
 ### Close master log
 log.close()
 
+print()
 sys.exit ("Exiting...")
 
 
