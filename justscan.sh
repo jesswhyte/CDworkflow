@@ -7,15 +7,16 @@ function show_help() {
   echo -e "USAGE: bash justscan.sh -d <OUTPUT DIRECTORY> -c <ID> \n"
   echo -e "-d : The directory you want to write to, please no trailing /, e.g. /ECSL-CDs"
   echo -e "-c : The ID of the item, e.g. callnumber, accessionID, diskID, etc. No spaces"
-  echo -e "Example:\njustscan.sh -d /ECSL-CDs -c qa76.73.j38.r54.2002x"  
+  echo -e "Example:\njustscan.sh -d /ECSL-CDs -c qa76.73.j38.r54.2002x will output: /ECSL-CDs/QA76-73-J38-R54-2002x.tiff"  
   echo
   exit 1
 }
 
 OPTIND=1
 dir=""
+dir=${dir%/}
 ID=""
-cleanID=""
+diskID=""
 
 # Parse arguments
 while getopts "h?d:c:" opt; do
@@ -41,7 +42,7 @@ if [ -z "$dir" ] || [ -z "$ID" ] || [ "$garbage" ]; then
 fi
 
 ### Clean ID ###
-cleanID=${ID^^//./-} #make all caps and replace . with -
+diskID=${ID^^//./-} #make all caps and replace . with -
 
 ### Get correct scanner location ###
 bus=$(lsusb | grep Epson | cut -d " " -f 2)
@@ -52,8 +53,8 @@ echo "If scanner not found (no bus/device), then scanner is not available."
 echo
 scanner="epson2:libusb:$bus:$device"
 
-tiff="$dir/$cleanID/$cleanID.tiff"
-#cropped="$dir/$cleanID/$cleanID.tiff"
+tiff="${dir}/${diskID}.tiff"
+#cropped="$dir/$diskID.tiff"
 
 if [ -e $tiff ]; then
   echo $tiff "already exists:"
@@ -64,11 +65,14 @@ if [ -e $tiff ]; then
   fi
 fi
 
-mkdir -p $dir/$cleanID/
+mkdir -p ${dir}
 scanimage --mode=Color --format=tiff --resolution 300 -x 150 -y 150 >> $tiff
 
 if [ $tiff ]; then
   echo "scan complete:"
+else
+  echo "ERROR: ${tiff} not found."
+fi
 
 ### old code for cropping image to edges
 #convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
