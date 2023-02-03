@@ -1,65 +1,48 @@
-#!/bin/bash -i
-#TO DO: move scripts to path, generalize, etc
+#!/usr/bin/env bash
+# bash
+#@jesswhyte, rewrite of single-cd.sh/single-barcode.sh/single-cd-nocall.sh, from 2016
 
 function show_help() {
 	echo
 	echo -e "USAGE: single-cd.sh -d /output-directory/ -l LIBRARY \n"
-	echo -l ": The library the collection is from."
-	echo -d ": The directory you want to write to, e.g. /share/ECSL-ISO-AllBatches/"
- 	echo -e "Example:\n./single-cd.sh -l ECSL -d /share/ECSL-ISO-AllBatches/"  
+	echo -l ": The library or archive the collection is from."
+	echo -o ": The directory you want to output to, e.g. /mnt/data/"
+    echo -m ": MMSID e.g. alma991105954773306196, optional"
+    echo -b ": item barcode, e.g. 31761095831004, optional"
+    echo -d ": Disk ID, e.g. B2014-004-001, B2014-004-002, optional"
+    echo -N ": boolean flag for multiple disks in object"
+ 	echo -e "Example:\n./single-cd.sh -l ECSL -o /mnt/data/ -m alma991105954773306196"  
+	echo 
 }
 
-
-function array_contains() {
-  local array="$1[@]"
-  local seeking=$2
-  local in=1
-  for element in "${!array}"; do
-    if [[ $element == $seeking ]]; then
-      in=0
-      break
-    fi
-  done
-  return $in
-}
-
-function scandisk {
-	tiff="$dir$calldum/$calldum-original.tiff"
-	cropped="$dir$calldum/$calldum.tiff"
-	if [ -e $cropped ]; then
-		echo $cropped "exists"
-		ls $cropped
-	fi
-	read -p "Do you want to scan this disk? [y/n] " response
-	if [[ "$response" =~ ^([Yy])+$ ]]; then
-		echo "Ejecting drive..."
-		eject
-		read -p "Please put disk on scanner and hit any key when ready"
-		echo "Scanning...: $tiff"
-		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
-		convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
-		echo "Scan complete and image cropped"
-	fi
-}
-
+multiple=false
 OPTIND=1
 dir=""
+dir=${dir%/}
 lib=""
-callnum=""
-calldum=""
-answer="y"
+diskID=""
+barcode=""
+MMSID=""
 drive="/dev/cdrom"
 
 # Parse arguments
-while getopts "h?d:l:s:" opt; do
+while getopts "h?o:l:m:b:d:N" opt; do
     case "$opt" in
     h|\?)
         show_help
 	exit
         ;;
-    d)  dir=$OPTARG
+    o)  dir=$OPTARG
         ;;
     l)  lib=$OPTARG
+        ;;
+    m)  MMSID=$OPTARG
+        ;;
+    b)  barcode=$OPTARG
+        ;;
+    d)  diskID=$OPTARG
+        ;;
+    N)  multiple=true
         ;;
     esac
 done
@@ -68,72 +51,57 @@ shift $((OPTIND-1))
 
 [ "$1" = "--" ] && shift
 
-garbage="$@"
-
 # Check all required parameters are present
 if [ -z "$lib" ]; then
-  echo "Library (-l) is required!"
-elif [ -z "$dir" ]; then
-  echo "output directory (-d) is required!"
-elif [ "$garbage" ]; then
-  echo "$garbage is garbage."
-fi
-
-# Sanity checking
-LIBS=(ARCH ART ASTRO CHEM CRIM DENT OPIRG EARTH EAL ECSL FCML FNH GERSTEIN INFORUM INNIS KNOX LAW MDL MATH MC PONTIF MUSIC NEWCOLLEGE NEWMAN OISE PJRC PHYSICS REGIS RCL UTL ROM MPI STMIKES TFRBL TRIN UC UTARMS UTM UTSC VIC)
-array_contains LIBS "$lib" && lv=1 || lv=0
-if [ $lv -eq 0 ]; then
-  echo "$lib is not a valid library name."
+  echo "Library or archive (-l) is required!"
   echo -e "Valid libraries:\n${LIBS[*]}"
+  exit 
+elif [ -z "$dir" ]; then
+  echo "output directory (-o) is required!"
+  exit 	
 fi
 
-### Get correct scanner location ###
-scanner="epson2:libusb:"
-bus=$(lsusb | grep Epson | cut -d " " -f 2)
-device=$(lsusb | grep Epson | cut -d " " -f 4 | cut -d ":" -f 1)
-if [ -z "$device" ]; then 
-	echo "***ERROR: SCANNER NOT FOUND***"
-	exit 1
-else
-	scanner="epson2:libusb:$bus:$device"
+# ask if there are multiple disks
+if $multiple; then
+    echo
+    IFS= read -re -p 'Multiple discs: Which Disc # is this, e.g. 001, 002, 003? ' disknum
+    echo
 fi
 
-numResults=""
+#### GET diskID, the FILENAME, based on callnumber or provided diskID ###
 
-while [[ "$numResults" != "1" ]]; do
-	echo ""
-	IFS= read -re -i "$callnum" -p 'Enter Call Number (use "."), lower-case OK: ' callnum
-	#echo -n 'Enter Call Number (use "."), lower-case OK: '
-	#read callnum
-	callnum=${callnum^^}
-	calldum=${callnum//./-}
-	callnum=$(sed -e 's/\.DIS..//g' <<< $callnum)
-	echo ""
-	echo "Making catalog call on:  $callnum"
-	calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/search?N=0&Ntx=mode+matchallpartial&Nu=p_work_normalized&Np=1&Ntk=p_call_num_949&format=json&Ntt=$callnum")
-	numResults=$(echo $calljson | jq .result.numResults)
-	echo ""
-	if [ "$numResults" -eq "0" ]; then
-		echo "ERROR: No catalog results found."
-	elif [ "$numResults" -gt "1" ]; then
-		echo "ERROR: More than one catalog result found."
-		IFS= read -re -i "$catkey" -p 'Enter cat key (can find in library catalog) or Ctrl+C to exit: ' catkey
-		calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/details?$catkey&format=json")	
-		title=$(echo $calljson | jq .record.title)
-		if [[ -n "$title" ]]; then
-			echo "TITLE FOUND: $title"
-			numResults=1
-		fi
-	elif [ "$numResults" -eq "1" ]; then
-		title=$(echo $calljson | jq .result.records[].title)
-		echo "SUCCESS: One cat result found: $title"
-		continue
-	fi
-done
+if [[ $barcode != "" ]]; then
+    bash barcode-pull.sh -b ${barcode} -f > tmp.json
+    echo "Using barcode: ${barcode}"
+    diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
+    echo "callNumber=${diskID}"
+elif [[ $MMSID != "" ]]; then 
+    bash mmsid-pull.sh -m ${MMSID} -f > tmp.json
+    echo "Using MMSID: ${MMSID}"
+    diskID=$(jq -r .delivery.bestlocation.callNumber tmp.json)
+    echo "callNumber=${diskID}"
+elif [[ $diskID != "" ]]; then
+    echo "Using: ${diskID}" # this is a placeholder
+fi
+
+#diskID="${diskID^^// /-//./-//--/-//\"}" # replace spaces, dots and double dashes with single dashes, remove double quotes
+diskID=${diskID// /-}
+diskID=${diskID//./-}
+diskID=${diskID^^}
+diskID=${diskID//--/-}
+diskID=${diskID//\"/}
+echo "diskID=${diskID}"
+
+if [[ -n "$disknum" ]]; then
+	diskID="${diskID}-DISK_${disknum}"
+fi
+	
 	
 echo ""
-read -p "Please insert disk into drive and hit Enter"
-read -p "Please hit Enter again, once disc is LOADED"
+read -p "Please insert disc into drive and hit Enter"
+echo
+read -p "Please hit Enter again, once disc is fully LOADED"
+echo
 
 #get CD INFO
 cdinfo=$(isoinfo -d -i /dev/cdrom)
@@ -141,36 +109,67 @@ volumeCD=$(echo "$cdinfo" | grep "^Volume id:" | cut -d " " -f 3)
 #get blockcount/volume size of CD
 blockcount=$(echo "$cdinfo" | grep "^Volume size is:" | cut -d " " -f 4)
 if test "$blockcount" = ""; then
-	echo catdevice FATAL ERROR: Blank blockcount >&2
-	exit
+	echo
+	echo FAIL: catdevice FATAL ERROR: Blank blockcount >&2
+	#exit 2
 fi
 
 #get blocksize of CD
 blocksize=$(echo "$cdinfo" | grep "^Logical block size is:" | cut -d " " -f 5)
 if test "$blocksize" = ""; then
-	echo catdevice FATAL ERROR: Blank blocksize >&2
-	exit
+	echo
+	echo FAIL: catdevice FATAL ERROR: Blank blocksize >&2
+	#exit 2
 fi
 
-#echo back of CD INFO
+##### Display CD INFO #####
 echo ""
 echo "Volume label for CD is: "$volumeCD
 echo "Volume size for CD is: "$blockcount
-echo ""
+echo 
+dir=${dir%/}
+mkdir -p $dir
 
-mkdir -p -m 777 $dir/$calldum
+#### RIP ISO #####
+echo "Ripping CD to ${dir}/${diskID}.iso"
+echo
+#dd bs=${blocksize} count=${blockcount} if=/dev/cdrom of=${dir}/${diskID}.iso status=progress
+touch ${dir}/${diskID}.iso ## for testing
 
-#Rip ISO
-echo "Ripping CD $dir/$calldum/$calldum.iso"
-dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress
-#touch $dir/$calldum/$calldum.iso
-	
-scandisk
-
-if [[ -n "$catkey" ]]; then
-	CD-catpull.py -l $lib -d $dir -c $callnum -k $catkey
+##### SCANNING CD #####
+echo
+read -p "Do you want to scan this disc? [y/n] " response
+if [[ "$response" =~ ^([Yy])+$ ]]; then
+	echo "Ejecting drive..."
+	eject
+	read -p "Please put disc on scanner and hit any key when ready"
+    bash justscan.sh -d $dir -c ${diskID}
 else
-	CD-catpull.py -l $lib -d $dir -c $callnum
+    echo "skipping scanning disc"
 fi
+
+#### Pulling metadata #####
+echo
+read -p "Do you want to pull the catalog metadata for this disk [y/n] " metaresponse 
+if [[ "${metaresponse}" =~ ^([Yy])+$ ]]; then
+    if [[ $barcode != "" ]]; then
+        MMSID=$(jq -r .bib_data.mms_id tmp.json)
+        bash mmsid-pull.sh -m alma${MMSID} -f > tmp.json
+        jq -r '.pnx | del(.delivery,.display.source,.display.crsinfo)' tmp.json > ${dir}/${diskID}.json
+    elif [[ $MMSID != "" ]]; then 
+        jq -r '.pnx | del(.delivery,.display.source,.display.crsinfo)' tmp.json > ${dir}/${diskID}.json
+    else
+        echo "no barcode or MMSID provided to pull metadata."
+    fi
+else
+    echo "skipping metadata pull"
+fi
+
+echo
+echo "${dir} listing:"
+ls -lh ${dir}
+echo
+
+rm tmp.json
 
 
