@@ -32,7 +32,7 @@ fi
 
 if [ -z "$catAPIkey" ]; then
     read -re -p 'Enter catalog API key: ' catAPIkey
-    echo "consider setting your catalog API key as an environment variable, e.g. export catAPIkey=_______"
+    echo "consider setting your catalog API key as an environment variable to avoid these prompts, e.g. export catAPIkey=_______"
     echo 
 fi
 
