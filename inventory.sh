@@ -3,7 +3,10 @@
 
 function show_help() {
 	echo
-	echo -e "USAGE: inventory.sh -d /output-directory/filename.csv"
+	echo -e "reads a barcode and then outputs catalog information to a designated csv"
+	echo -e "relies on barcode-pull.sh, also in this repository"
+	echo -e "requires catAPIkey to be set"
+	echo -e "USAGE: inventory.sh -o /output-directory/filename.csv"
 }
 
 
@@ -23,18 +26,17 @@ function array_contains() {
 
 OPTIND=1
 barcode=""
-callnum=""
-calldum=""
-numResults=""
+diskID=""
+
 
 # Parse arguments
-while getopts "h?d:s:" opt; do
+while getopts "h?o:" opt; do
     case "$opt" in
     h|\?)
         show_help
 	exit
         ;;
-    d)  outCSV=$OPTARG
+    o)  outCSV=$OPTARG
         ;;
     esac
 done
@@ -47,7 +49,7 @@ garbage="$@"
 
 # Check all required parameters are present
 if [ -z "$outCSV" ]; then
-  echo "output directory (-d) is required!"
+  echo "output directory (-o) is required!"
 elif [ "$garbage" ]; then
   echo "$garbage is garbage."
 fi
@@ -55,44 +57,22 @@ fi
 another="y"
 while [[ "$another" == "y" ]]; do
 	IFS= read -re -p 'Scan barcode: ' barcode
-	calljson=$(curl --silent "https://search.library.utoronto.ca/search?N=0&Nu=p_work_normalized&Np=1&Nr=p_item_id:$barcode&format=json")
-	numResults=$(echo $calljson | jq .result.numResults)
-	echo "numResults are: " $numResults
-	if [ "$numResults" -eq "0" ]; then
-		echo "ERROR: No catalog results found."
-	elif [ "$numResults" -gt "1" ]; then
-		echo "ERROR: More than one catalog result found."
-		IFS= read -re -i "$catkey" -p 'Enter cat key (can find by searching library.utoronto.ca) or Ctrl+C to exit: ' catkey
-		calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/details?$catkey&format=json")	
-		title=$(echo $calljson | jq .record.title)
-		if [[ -n "$title" ]]; then
-			echo "TITLE FOUND: $title"
-		fi
-	elif [ "$numResults" -eq "1" ]; then
-		title=$(echo $calljson | jq .result.records[].title)
-		catkey=$(echo $calljson | jq .result.records[].catkey)
-		#echo "SUCCESS: One cat result found: $title"
-	fi
-	
-	#Get call number
-	numItems=""
-	numItems=$(echo $calljson | jq '.result.records[].holdings.items | length')
-	if [ "$numItems" -eq "0" ]; then 
-		echo "ERROR: no holdings or items found."
-	elif [ "$numItems" -gt "0" ]; then
-		callnum=$(echo $calljson | jq .result.records[].holdings.items[0].callnumber)
-	fi
+	bash barcode-pull.sh -b ${barcode} -f > tmp.json
+	#echo "Using barcode: ${barcode}"
+	diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
+	MMSID=$(jq -r .bib_data.mms_id tmp.json)
+	title=$(jq .bib_data.title tmp.json)
 
-	callnum=${callnum// /-} #remove spaces
-	callnum=${callnum^^} #capitalize
-	callnum=${callnum//./-} #replace dots with dashes
-	callnum=${callnum//--/-} #replace double dashes
-	callnum=$(sed 's/"//g' <<< $callnum)
-	date=`date +%Y-%m-%d`
-
-	echo "$catkey $title $callnum $date"
-
-	echo "$catkey,$title,$callnum,$date" >> $outCSV
+	#diskID="${diskID^^// /-//./-//--/-//\"}" # replace spaces, dots and double dashes with single dashes, remove double quotes
+	diskID=${diskID// /-}
+	diskID=${diskID//./-}
+	diskID=${diskID^^}
+	diskID=${diskID//--/-}
+	diskID=${diskID//\"/}
+	echo "$diskID, $title, alma$MMSID, $date"
+	echo "$diskID,$title,alma$MMSID,$date" >> $outCSV
+	rm tmp.json
 done
+
 
 
