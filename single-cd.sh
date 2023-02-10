@@ -11,11 +11,14 @@ function show_help() {
     echo -b ": item barcode, e.g. 31761095831004, optional"
     echo -d ": Disk ID, e.g. B2014-004-001, B2014-004-002, optional"
     echo -N ": boolean flag for multiple disks in object"
- 	echo -e "Example:\n./single-cd.sh -l ECSL -o /mnt/data/ -m alma991105954773306196"  
+ 	echo -J ": boolean flag for if object is part of a journal or series"
+    echo
+    echo -e "Example:\n./single-cd.sh -l ECSL -o /mnt/data/ -m alma991105954773306196"  
 	echo 
 }
 
 multiple=false
+journal=false
 OPTIND=1
 dir=""
 dir=${dir%/}
@@ -26,7 +29,7 @@ MMSID=""
 drive="/dev/cdrom"
 
 # Parse arguments
-while getopts "h?o:l:m:b:d:N" opt; do
+while getopts "h?o:l:m:b:d:NJ" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -44,6 +47,7 @@ while getopts "h?o:l:m:b:d:N" opt; do
         ;;
     N)  multiple=true
         ;;
+    J)  journal=true
     esac
 done
 
@@ -73,7 +77,12 @@ fi
 if [[ $barcode != "" ]]; then
     bash barcode-pull.sh -b ${barcode} -f > tmp.json
     echo "Using barcode: ${barcode}"
-    diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
+    if $journal; then 
+        echo "JOURNAL OR SERIES identified by -J. Using item_data.alternative_call_number"
+        diskID=$(jq -r .item_data.alternative_call_number tmp.json)
+    else
+        diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
+    fi
     echo "callNumber=${diskID}"
 elif [[ $MMSID != "" ]]; then 
     bash mmsid-pull.sh -m ${MMSID} -f > tmp.json
