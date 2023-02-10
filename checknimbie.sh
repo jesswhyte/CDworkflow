@@ -1,5 +1,4 @@
 #!/bin/bash -i
-#TO DO: move scripts to path, generalize, etc
 
 function show_help() {
 	echo
@@ -7,7 +6,14 @@ function show_help() {
 	echo -l ": The library the collection is from."
 	echo -d ": The directory you want to write to, e.g. /share/ECSL-ISO-AllBatches/"
 	echo -s ": The source directory for iso files, e.g. /share/Nimbie_ISOs"
+	echo -b ": item barcode, e.g. 31761095831004, optional"
+	echo -m ": MMSID e.g. alma991105954773306196, optional"
+	echo -d ": Set Disk ID, e.g. B2014-004-001, B2014-004-002, optional"
+	echo -J ": boolean flag for if object is part of a journal or series"
+	echo -N ": boolean flag for multiple disks in object"
+	echo
  	echo -e "Example:\n./checknimbie.sh -l ECSL -s /share/Nimbie_ISOs/ -d /share/ECSL-ISO-AllBatches/"  
+	echo
 }
 
 
@@ -24,32 +30,13 @@ function array_contains() {
   return $in
 }
 
-function scandisk {
-	tiff="$dir$calldum/$calldum-original.tiff"
-	cropped="$dir$calldum/$calldum.tiff"
-	if [ -e $cropped ]; then
-		echo $cropped "exists"
-		ls $cropped
-	fi
-	read -p "Do you want to scan this disk? [y/n] " response
-	if [[ "$response" =~ ^([Yy])+$ ]]; then
-		echo "Ejecting drive..."
-		eject
-		read -p "Please put disk on scanner and hit any key when ready"
-		echo "Scanning...: $tiff"
-		scanimage -d "$scanner" --format=tiff --mode col --resolution 300 -x 150 -y 150 >> $tiff
-		convert $tiff -crop `convert $tiff -virtual-pixel edge -blur 0x15 -fuzz 15% -trim -format '%[fx:w]x%[fx:h]+%[fx:page.x]+%[fx:page.y]' info:` +repage $cropped
-		echo "Scan complete and image cropped"
-	fi
-}
 
 function ddISO {
 	read -p "Do you want to manually create an .ISO now (y/n)? " ddresponse && echo $ddresponse
 		if [[ "$ddresponse" != "n" ]]; then 	
 			#Rip ISO
-			echo "Ripping CD $dir/$calldum/$calldum.iso"
-			mkdir -p -m 777 $dir/$calldum
-			dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$calldum/$calldum.iso status=progress	
+			echo "Ripping CD $dir/$diskID.iso"
+			dd bs=$blocksize count=$blockcount if=/dev/cdrom of=$dir/$diskID.iso status=progress	
 		else	
 			exit 1
 		fi
@@ -61,22 +48,12 @@ function manualISO {
 	if [[ "$ISOresponse" != "n" ]]; then
 		read -p "Do you want to double-check the md5 checksums [y/n]: " md5response && echo $md5response
 		if [[ "$md5response" != "y" ]]; then
-			mkdir -p -m 777 $dir$calldum
-			mv -iv $ISOresponse $dir$calldum/$calldum.iso
+			mv -iv $ISOresponse $dir/$diskID.iso
 		else			
 			checkmd5
 		fi
 	else
 		ddISO
-	fi
-}
-
-function CD-catpull {
-	read -p "Do you want to pull and check catalog metadata? [y/n] " catresponse && echo $catresponse
-	if [[ "$catresponse" == "y" ]]; then
-		/usr/local/bin/CD-catpull.py -l "$lib" -d "$dir" -c "$callnum"
-	else 
-		echo "No metadata pulled. project log NOT updated."
 	fi
 }
 
@@ -89,8 +66,7 @@ function checkmd5 {
 	echo "CD MD5 is: "$md5cd
 	if [ "$md5cd" == "$md5iso" ]; then
 		echo "Checksums MATCH...moving file"
-		mkdir -p -m 777 $dir$calldum
-		mv -v $iso $dir$calldum/$calldum.iso	
+		mv -v $iso $dir/$diskID.iso	
 	else 
 		echo "Checksums DO NOT MATCH"
 		echo "you will need to manually create ISO using dd"
@@ -101,24 +77,28 @@ function checkmd5 {
 function doublecheck {
 	read -p "Double check md5 checksums [y/n]: " md5response && echo $md5response
 	if [[ "$md5response" != "y" ]]; then
-		mkdir -p -m 777 $dir$calldum
-		mv -iv $iso $dir$calldum/$calldum.iso
+		#mkdir -p -m 777 $dir/$diskID
+		mv -iv $iso $dir/$diskID.iso
 	else			
 		checkmd5
 	fi	
 }
 
+multiple=false
+journal=false
 OPTIND=1
 dir=""
+dir=${dir%/}
 lib=""
 source=""
-callnum=""
-calldum=""
+diskID=""
 answer="y"
+barcode=""
+MMSID=""
 drive="/dev/cdrom"
 
 # Parse arguments
-while getopts "h?d:l:s:" opt; do
+while getopts "h?d:l:s:m:b:d:NJ" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -129,7 +109,16 @@ while getopts "h?d:l:s:" opt; do
     l)  lib=$OPTARG
         ;;
     s)  source=$OPTARG
-	;;	
+	;;
+	m)  MMSID=$OPTARG
+        ;;
+    b)  barcode=$OPTARG
+        ;;
+    d)  diskID=$OPTARG
+        ;;
+    N)  multiple=true
+        ;;
+    J)  journal=true	
     esac
 done
 
@@ -158,59 +147,54 @@ if [ $lv -eq 0 ]; then
   echo -e "Valid libraries:\n${LIBS[*]}"
 fi
 
-
-### Get correct scanner location ###
-scanner="epson2:libusb:"
-bus=$(lsusb | grep Epson | cut -d " " -f 2)
-device=$(lsusb | grep Epson | cut -d " " -f 4 | cut -d ":" -f 1)
-if [ -z "$device" ]; then 
-	echo "***ERROR: SCANNER NOT FOUND***"
-	exit 1
-else
-	scanner="epson2:libusb:$bus:$device"
-fi
-
 ### GET VOLUME NAMES OF NIMBIE ISO FILES ###
 if [ -f volumeIDs-temp.txt ] ; then 
 	rm volumeIDs-temp.txt
 fi
 
-numResults=""
+# ask if there are multiple disks
+if $multiple; then
+    echo
+    IFS= read -re -p 'Multiple discs: Which Disc # is this, e.g. 001, 002, 003? ' disknum
+    echo
+fi
 
-### Work out callnum ###
-while [[ "$numResults" != "1" ]]; do
-	echo ""
-	IFS= read -re -i "$callnum" -p 'Enter Call Number (use "."), lower-case OK: ' callnum
-	#echo -n 'Enter Call Number (use "."), lower-case OK: '
-	#read callnum
-	callnum=${callnum^^}
-	calldum=${callnum//./-}
-	callnum=$(sed -e 's/\.DIS..//g' <<< $callnum)
-	echo ""
-	echo "Making catalog call on:  $callnum"
-	calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/search?N=0&Ntx=mode+matchallpartial&Nu=p_work_normalized&Np=1&Ntk=p_call_num_949&format=json&Ntt=$callnum")
-	numResults=$(echo $calljson | jq .result.numResults)
-	echo ""
-	if [ "$numResults" -eq "0" ]; then
-		echo "ERROR: No catalog results found."
-	elif [ "$numResults" -gt "1" ]; then
-		echo "ERROR: More than one catalog result found."
-		IFS= read -re -i "$catkey" -p 'Enter cat key (can find in library catalog) or Ctrl+C to exit: ' catkey
-		calljson=$(curl -H "Accept:application/json" "https://search.library.utoronto.ca/details?$catkey&format=json")	
-		title=$(echo $calljson | jq .record.title)
-		if [[ -n "$title" ]]; then
-			echo "TITLE FOUND: $title"
-			numResults=1
-		fi
-	elif [ "$numResults" -eq "1" ]; then
-		title=$(echo $calljson | jq .result.records[].title)
-		echo "SUCCESS: One cat result found: $title"
-		continue
-	fi
-done
+#### GET diskID, the FILENAME, based on callnumber or provided diskID ###
 
+if [[ $barcode != "" ]]; then
+    bash barcode-pull.sh -b ${barcode} -f > tmp.json
+    echo "Using barcode: ${barcode}"
+    if $journal; then 
+        echo "JOURNAL OR SERIES identified by -J. Using item_data.alternative_call_number to find the Call Number"
+        diskID=$(jq -r .item_data.alternative_call_number tmp.json)
+    else
+        diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
+    fi
+    echo "callNumber=${diskID}"
+elif [[ $MMSID != "" ]]; then 
+    bash mmsid-pull.sh -m ${MMSID} -f > tmp.json
+    echo "Using MMSID: ${MMSID}"
+    diskID=$(jq -r .delivery.bestlocation.callNumber tmp.json)
+    echo "callNumber=${diskID}"
+elif [[ $diskID != "" ]]; then
+    echo "Using: ${diskID}" # this is a placeholder
+fi
 
-### Insert Disk ###	
+#diskID="${diskID^^// /-//./-//--/-//\"}" # replace spaces, dots and double dashes with single dashes, remove double quotes
+diskID=${diskID// /-}
+diskID=${diskID//./-}
+diskID=${diskID^^}
+diskID=${diskID//--/-}
+diskID=${diskID//\"/}
+echo "diskID=${diskID}"
+
+if [[ -n "$disknum" ]]; then
+	diskID="${diskID}-DISK_${disknum}"
+fi
+	
+
+### Insert Disk ###
+echo	
 read -p "Please insert disk into drive and hit Enter"
 read -p "Please hit Enter again, once disc is LOADED"
 
@@ -240,7 +224,8 @@ echo ""
 
 
 #Check against ISO
-echo "Checking List of ISO's..."
+echo "Checking List of Nimbie ISO's to find a match..."
+echo
 
 #Load info on existing iso's (from Nimbie)
 exec 2>/dev/null #outputs iso offset warnings (all output) to /dev/null
@@ -256,9 +241,10 @@ exec 2>/dev/tty #returns outputs to terminal
 if [ -z "$volumeCD" ]; then
 	grep $blockcount volumeIDs-temp.txt | while read -r line;  do
 		isosize=$(echo $line | cut -d "," -f 3)
-		echo "No Volume Name for CD, but ISO Size is :"$isosize
+		echo "No Volume Name for CD, but checking for matches based on ISO Size:"$isosize
 		iso=$(echo $line | cut -d "," -f 1)
-		echo "ISO is: "$iso
+		echo "Match found. ISO is: "$iso
+		echo
 		doublecheck
 	done
 			
@@ -282,7 +268,8 @@ else
 				isosize=$(echo $line | cut -d "," -f 3)
 				echo "ISO Size is :"$isosize
 				iso=$(echo $line | cut -d "," -f 1)
-				echo "ISO is: "$iso
+				echo "Match found. ISO is: "$iso
+				echo
 				doublecheck
 			
 			done		
@@ -293,11 +280,11 @@ else
 			iso=$(echo $line | cut -d "," -f 1)
 			echo "MATCH FOUND: "$line
 			echo "Copying ISO to new location..."
-			if [ -e $dir$calldum/$calldum.iso ]; then
-				echo "ISO file already exists. Not moving ISO file. Please check."
+			if [ -e $dir/$diskID.iso ]; then
+				echo "ISO file already exists. Not moving ISO file. Please doublecheck."
+				echo
 			else	
-				mkdir -p -m 777 $dir$calldum
-				mv -iv $iso $dir$calldum/$calldum.iso
+				mv -iv $iso $dir/$diskID.iso
 			fi			
 		
 		done	
@@ -305,9 +292,42 @@ else
 fi	
 
 #scan the disk
-scandisk
-#pull the metadata using python script
-CD-catpull
+##### SCANNING CD #####
+echo
+read -p "Do you want to scan this disc? [y/n] " response
+if [[ "$response" =~ ^([Yy])+$ ]]; then
+	echo "Ejecting drive..."
+	eject
+	read -p "Please put disc on scanner and hit any key when ready"
+    bash justscan.sh -d $dir -c ${diskID}
+else
+    echo "skipping scanning disc"
+fi
+
+#### Pulling metadata #####
+echo
+read -p "Do you want to pull the catalog metadata for this disk [y/n] " metaresponse 
+if [[ "${metaresponse}" =~ ^([Yy])+$ ]]; then
+    if [[ $barcode != "" ]]; then
+        MMSID=$(jq -r .bib_data.mms_id tmp.json)
+        bash mmsid-pull.sh -m alma${MMSID} -f > tmp.json
+        jq -r '.pnx | del(.delivery,.display.source,.display.crsinfo)' tmp.json > ${dir}/${diskID}.json
+    elif [[ $MMSID != "" ]]; then 
+        jq -r '.pnx | del(.delivery,.display.source,.display.crsinfo)' tmp.json > ${dir}/${diskID}.json
+    else
+        echo "no barcode or MMSID provided to pull metadata."
+    fi
+else
+    echo "skipping metadata pull"
+fi
+
+echo
+echo "${dir} listing:"
+ls -lh ${dir}
+echo
+
+rm tmp.json
+
 #remove old volumeIDs-temp.txt
 rm volumeIDs-temp.txt
 

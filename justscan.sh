@@ -69,7 +69,8 @@ mkdir -p ${dir}
 scanimage --mode=Color --format=tiff --resolution 300 -x 150 -y 150 >> $tiff
 
 if [ $tiff ]; then
-  echo "scan complete:"
+  echo "scan complete"
+  ls -l $tiff
 else
   echo "ERROR: ${tiff} not found."
 fi
