@@ -133,7 +133,7 @@ mkdir -p $dir
 #### RIP ISO #####
 echo "Ripping CD to ${dir}/${diskID}.iso"
 echo
-#dd bs=${blocksize} count=${blockcount} if=/dev/cdrom of=${dir}/${diskID}.iso status=progress
+dd bs=${blocksize} count=${blockcount} if=/dev/cdrom of=${dir}/${diskID}.iso status=progress
 touch ${dir}/${diskID}.iso ## for testing
 
 ##### SCANNING CD #####
