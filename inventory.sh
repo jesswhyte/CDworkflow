@@ -62,6 +62,8 @@ while [[ "$another" == "y" ]]; do
 	diskID=$(jq -r .holding_data.permanent_call_number tmp.json)
 	MMSID=$(jq -r .bib_data.mms_id tmp.json)
 	title=$(jq .bib_data.title tmp.json)
+	barcode=${barcode}
+	dateTime=`date +"%Y-%m-%d %T"`
 
 	#diskID="${diskID^^// /-//./-//--/-//\"}" # replace spaces, dots and double dashes with single dashes, remove double quotes
 	diskID=${diskID// /-}
@@ -69,8 +71,8 @@ while [[ "$another" == "y" ]]; do
 	diskID=${diskID^^}
 	diskID=${diskID//--/-}
 	diskID=${diskID//\"/}
-	echo "$diskID, $title, alma$MMSID, $date"
-	echo "$diskID,$title,alma$MMSID,$date" >> $outCSV
+	echo "$diskID, $title, alma$MMSID, $dateTime, $barcode"
+	echo "$diskID,$title,alma$MMSID,$dateTime, $barcode" >> $outCSV
 	rm tmp.json
 done
 
