@@ -175,7 +175,7 @@ else
 fi
 
 echo
-echo "Files just created in ${dir}"
+echo "Files just created in ${dir} :"
 find ${dir} -type f -name "${diskID}.*"
 echo
 if [[ $barcode != "" ]]; then
