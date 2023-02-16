@@ -175,8 +175,8 @@ else
 fi
 
 echo
-echo "${dir} listing:"
-ls -lh ${dir}
+echo "Files just created in ${dir}"
+find ${dir} -type f -name "${diskID}.*"
 echo
 
 rm tmp.json
