@@ -183,6 +183,21 @@ if [[ $barcode != "" ]]; then
 fi
 echo
 
+projectlog="${dir}/projectlog.csv"
+isofile=$(find ${dir} -type f -name "${diskID}.iso" -printf "%f\n")
+tifffile=$(find ${dir} -type f -name "${diskID}.tiff" -printf "%f\n")
+jsonfile=$(find ${dir} -type f -name "${diskID}.json" -printf "%f\n")
+dateNtime=$(date +"%Y%m%d_%H%M%S")
+
+header="diskID,barcode,iso_file,tiff_file,json_file,create_time"
+if [ ! -f "$projectlog" ]; then
+    echo "$header" > "$projectlog"
+fi
+
+echo "${diskID},${barcode},${isofile},${tifffile},${jsonfile},${dateNtime}" >> ${projectlog}
+
+echo "See the updated log in ${projectlog}"
+
 rm tmp.json
 
 
