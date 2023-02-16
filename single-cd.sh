@@ -173,7 +173,7 @@ if [[ "${metaresponse}" =~ ^([Yy])+$ ]]; then
 else
     echo "skipping metadata pull"
 fi
-
+#### Showing the created file(s) and item barcode #####
 echo
 echo "Files just created in ${dir} :"
 find ${dir} -type f -name "${diskID}.*"
@@ -183,14 +183,15 @@ if [[ $barcode != "" ]]; then
 fi
 echo
 
+#### Creating projectlog.csv #####
 projectlog="${dir}/projectlog.csv"
 isofile=$(find ${dir} -type f -name "${diskID}.iso" -printf "%f\n")
 tifffile=$(find ${dir} -type f -name "${diskID}.tiff" -printf "%f\n")
 jsonfile=$(find ${dir} -type f -name "${diskID}.json" -printf "%f\n")
 dateNtime=$(date +"%Y%m%d_%H%M%S")
 
-header="diskID,barcode,iso_file,tiff_file,json_file,create_time"
-if [ ! -f "$projectlog" ]; then
+header="diskID,barcode,iso_file,tiff_file,json_file,create_time" #csv header
+if [ ! -f "$projectlog" ]; then #check if the file exists; if not, add the header
     echo "$header" > "$projectlog"
 fi
 
