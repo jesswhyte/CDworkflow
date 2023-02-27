@@ -175,8 +175,12 @@ else
 fi
 
 echo
-echo "${dir} listing:"
-ls -lh ${dir}
+echo "Files just created in ${dir} :"
+find ${dir} -type f -name "${diskID}.*"
+echo
+if [[ $barcode != "" ]]; then
+    echo "Item Barcode is: ${barcode}"
+fi
 echo
 
 rm tmp.json
