@@ -143,7 +143,7 @@ mkdir -p $dir
 echo "Ripping CD to ${dir}/${diskID}.iso"
 echo
 dd bs=${blocksize} count=${blockcount} if=/dev/cdrom of=${dir}/${diskID}.iso status=progress
-touch ${dir}/${diskID}.iso ## for testing
+
 
 ##### SCANNING CD #####
 echo
@@ -156,6 +156,8 @@ if [[ "$response" =~ ^([Yy])+$ ]]; then
 else
     echo "skipping scanning disc"
 fi
+
+checksum=$(md5sum ${dir}/${diskID}.iso | cut -d ' ' -f 1) # Generate md5 checksum for iso files
 
 #### Pulling metadata #####
 echo
@@ -190,15 +192,13 @@ tifffile=$(find ${dir} -type f -name "${diskID}.tiff" -printf "%f\n")
 jsonfile=$(find ${dir} -type f -name "${diskID}.json" -printf "%f\n")
 dateNtime=$(date +"%Y%m%d_%H%M%S")
 
-header="diskID,barcode,iso_file,tiff_file,json_file,create_time" #csv header
+header="diskID,barcode,iso_file,tiff_file,json_file,iso_checksum,create_time" #csv header
 if [ ! -f "$projectlog" ]; then #check if the file exists; if not, add the header
     echo "$header" > "$projectlog"
 fi
 
-echo "${diskID},${barcode},${isofile},${tifffile},${jsonfile},${dateNtime}" >> ${projectlog}
+echo "${diskID},${barcode},${isofile},${tifffile},${jsonfile},${checksum},${dateNtime}" >> ${projectlog}
 
-echo "See the updated log in ${projectlog}"
+echo "See the updated projectlog in ${projectlog}"
 
 rm tmp.json
-
-
