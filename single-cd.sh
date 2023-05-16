@@ -197,8 +197,11 @@ if [ ! -f "$projectlog" ]; then #check if the file exists; if not, add the heade
     echo "$header" > "$projectlog"
 fi
 
-echo "${diskID},${barcode},${isofile},${tifffile},${jsonfile},${checksum},${dateNtime}" >> ${projectlog}
+title=$(jq -r '.display.title | @text' ${dir}/${jsonfile})
 
+echo "Item title: ${title}"
+echo "${diskID},${barcode},${isofile},${tifffile},${jsonfile},${checksum},${dateNtime}" >> ${projectlog}
+echo
 echo "See the updated projectlog in ${projectlog}"
 
 rm tmp.json
